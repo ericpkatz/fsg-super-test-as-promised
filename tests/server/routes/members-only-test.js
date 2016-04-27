@@ -8,8 +8,9 @@ var expect = require('chai').expect;
 var dbURI = 'mongodb://localhost:27017/testingDB';
 var clearDB = require('mocha-mongoose')(dbURI);
 
-var supertest = require('supertest');
+var supertest = require('supertest-as-promised');
 var app = require('../../../server/app');
+var agent = supertest.agent(app);
 
 describe('Members Route', function () {
 
@@ -22,25 +23,7 @@ describe('Members Route', function () {
 		clearDB(done);
 	});
 
-	describe('Unauthenticated request', function () {
-
-		var guestAgent;
-
-		beforeEach('Create guest agent', function () {
-			guestAgent = supertest.agent(app);
-		});
-
-		it('should get a 401 response', function (done) {
-			guestAgent.get('/api/members/secret-stash')
-				.expect(401)
-				.end(done);
-		});
-
-	});
-
 	describe('Authenticated request', function () {
-
-		var loggedInAgent;
 
 		var userInfo = {
 			email: 'joe@gmail.com',
@@ -51,19 +34,30 @@ describe('Members Route', function () {
 			User.create(userInfo, done);
 		});
 
-		beforeEach('Create loggedIn user agent and authenticate', function (done) {
-			loggedInAgent = supertest.agent(app);
-			loggedInAgent.post('/login').send(userInfo).end(done);
-		});
 
-		it('should get with 200 response and with an array as the body', function (done) {
-			loggedInAgent.get('/api/members/secret-stash').expect(200).end(function (err, response) {
-				if (err) return done(err);
-				expect(response.body).to.be.an('array');
-				done();
-			});
+		it('should get with 200 response and with an array as the body', function () {
+			return agent.post('/login')
+        .send(userInfo)
+        .expect(200)
+        .then(function(){
+          return agent.get('/api/members/secret-stash')
+                    .expect(200);
+        })
+        .then(function(response){
+          expect(response.body.length).to.equal(11);
+        });
 		});
 
 	});
+
+	describe('Unauthenticated request', function () {
+
+		it('should get a 401 response', function () {
+			return agent.get('/api/members/secret-stash')
+				.expect(401);
+		});
+
+	});
+
 
 });
